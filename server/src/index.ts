@@ -9,6 +9,7 @@ import {
   getRoom,
   reapEmptyRooms,
   ensurePublicRoom,
+  liveStats,
   type DeckChoice,
 } from "./rooms.js";
 import { PUBLIC_ROOM_CODE } from "@mtg/shared";
@@ -100,7 +101,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === "/api/health") {
-      sendJson(res, 200, { ok: true });
+      sendJson(res, 200, { ok: true, sha: process.env.GIT_SHA ?? "dev", ...liveStats() });
       return;
     }
 

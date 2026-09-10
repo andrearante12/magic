@@ -8,3 +8,6 @@ server/data/
 *.tsbuildinfo
 *.db
 server/server/
+
+# deploy metadata (GIT_SHA), written by scripts/deploy.sh
+.deploy.env

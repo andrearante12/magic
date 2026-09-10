@@ -1,0 +1,28 @@
+name: Deploy to prod
+
+# A merged PR lands as a push to master, which is what actually deploys.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false # never interrupt a half-finished deploy
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, magic-prod]
+    steps:
+      # Deliberately no actions/checkout: it would create a second tree under
+      # the runner's _work/, separate from the /srv/magic tree the service
+      # actually runs from. Reset that tree instead so there is one canonical
+      # copy, and scripts/deploy.sh is present in it afterwards.
+      - name: Sync /srv/magic to this commit
+        run: |
+          git -C /srv/magic fetch --prune origin
+          git -C /srv/magic reset --hard "$GITHUB_SHA"
+          git -C /srv/magic clean -fd
+
+      - name: Build, drain, restart, verify
+        run: bash /srv/magic/scripts/deploy.sh

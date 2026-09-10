@@ -405,3 +405,11 @@ export function reapEmptyRooms() {
   const now = Date.now();
   for (const [code, room] of rooms) if (room.reapable(now)) rooms.delete(code);
 }
+
+/** Connected-client census for /api/health, so a deploy can drain before
+ *  restarting — rooms live only in memory, so a restart ends every game. */
+export function liveStats(): { rooms: number; players: number } {
+  let players = 0;
+  for (const room of rooms.values()) players += room.clients.size;
+  return { rooms: rooms.size, players };
+}
