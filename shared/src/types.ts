@@ -95,12 +95,33 @@ export interface Seat {
   library_loaded: boolean;
 }
 
+/**
+ * Structured description of what an action did, attached to the log entry it
+ * produced. Purely cosmetic — the client turns these into animations. Never
+ * carries anything redaction would strip: card `id`s are always public (only
+ * `oracleId` is hidden), and everything else here is a seat id or a number.
+ */
+export type Fx =
+  | { k: "shuffle"; seat: SeatId }
+  | { k: "draw"; seat: SeatId; cardIds: string[] }
+  | { k: "mulligan"; seat: SeatId; cardIds: string[] }
+  | { k: "move"; seat: SeatId; cardIds: string[]; from: Zone; to: Zone; toController: SeatId }
+  | { k: "coin"; seat: SeatId; heads: boolean }
+  | { k: "die"; seat: SeatId; sides: number; value: number }
+  | { k: "tap"; seat: SeatId; cardIds: string[]; tapped: boolean }
+  | { k: "untapAll"; seat: SeatId; cardIds: string[] }
+  | { k: "flip"; seat: SeatId; cardIds: string[]; kind: "transform" | "facedown" }
+  | { k: "life"; seat: SeatId; targetSeat: SeatId; delta: number; value: number }
+  | { k: "counter"; seat: SeatId; cardId: string; key: string; delta: number };
+
 export interface LogEntry {
   id: number;
   seat: SeatId | null;
   text: string;
   ts: number;
   kind: "action" | "chat" | "system";
+  /** Optional structured effect for client-side animation. */
+  fx?: Fx;
 }
 
 export interface GameState {

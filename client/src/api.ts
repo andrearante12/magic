@@ -57,7 +57,23 @@ export const api = {
     }),
   lookupRoom: async (code: string) => {
     // A 404 here is a valid answer ("no such room"), not a transport error.
-    const res = await fetch(`/api/rooms/${encodeURIComponent(code)}`, { credentials: "include" });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(`/api/rooms/${encodeURIComponent(code)}`, {
+        credentials: "include",
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      throw new Error(
+        (e as Error)?.name === "AbortError"
+          ? "The server isn't responding — try again in a moment."
+          : "Can't reach the server. Is it running?",
+      );
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await res.json().catch(() => ({}));
     if (res.status === 404) return { exists: false as const };
     if (!res.ok) throw new Error((data as any)?.error || `Request failed (${res.status})`);

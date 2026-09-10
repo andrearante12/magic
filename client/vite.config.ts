@@ -7,6 +7,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Fail loudly if 5173 is taken instead of silently drifting to 5174 — a
+    // stray port means the /api + /ws proxy below won't match the open browser tab.
+    strictPort: true,
     proxy: {
       "/api": "http://localhost:3000",
       "/ws": { target: "ws://localhost:3000", ws: true },

@@ -1,5 +1,5 @@
 import type { Action, ActionContext } from "./actions.js";
-import type { CardInstance, GameState, LogEntry, Seat, Zone } from "./types.js";
+import type { CardInstance, Fx, GameState, LogEntry, Seat, Zone } from "./types.js";
 
 /** Fisher–Yates using the injected RNG so shuffles are testable / replayable. */
 function shuffleInPlace<T>(arr: T[], rng: () => number): void {
@@ -29,14 +29,27 @@ function nextOrder(s: GameState, controller: string, zone: Zone): number {
   return cs.length ? cs[cs.length - 1].order + 1 : 0;
 }
 
+/**
+ * How many of the newest entries keep their `fx`. The whole log ships on every
+ * broadcast, so stale fx payloads are pure wire weight — the client only ever
+ * animates entries newer than its cursor, well within this window.
+ */
+const FX_KEEP = 32;
+
 function log(
   s: GameState,
   ctx: ActionContext,
   seat: string | null,
   text: string,
   kind: LogEntry["kind"] = "action",
+  fx?: Fx,
 ): void {
-  s.log.push({ id: ctx.nextLogId(), seat, text, ts: ctx.now(), kind });
+  const entry: LogEntry = { id: ctx.nextLogId(), seat, text, ts: ctx.now(), kind };
+  if (fx) entry.fx = fx;
+  s.log.push(entry);
+  // One entry ages past the fx window per push — drop its payload, keep its text.
+  const stale = s.log.length - 1 - FX_KEEP;
+  if (stale >= 0 && s.log[stale].fx) delete s.log[stale].fx;
   if (s.log.length > 500) s.log.splice(0, s.log.length - 500);
 }
 
@@ -60,9 +73,11 @@ export function applyAction(
     case "MOVE": {
       const toController = action.toController ?? action.seat;
       const moved: string[] = [];
+      let fromZone: Zone | undefined;
       for (const cardId of action.cardIds) {
         const card = findCard(s, cardId);
         if (!card) continue;
+        if (fromZone === undefined) fromZone = card.zone;
         card.zone = action.toZone;
         card.controller = toController;
         card.tapped = action.toZone === "battlefield" ? card.tapped : false;
@@ -92,7 +107,10 @@ export function applyAction(
         moved.push(cardId);
       }
       if (moved.length)
-        log(s, ctx, action.seat, `${who} moves ${moved.length} card(s) to ${action.toZone}`);
+        log(s, ctx, action.seat, `${who} moves ${moved.length} card(s) to ${action.toZone}`,
+          "action",
+          { k: "move", seat: action.seat, cardIds: moved, from: fromZone ?? action.toZone,
+            to: action.toZone, toController });
       break;
     }
 
@@ -101,7 +119,9 @@ export function applyAction(
         const c = findCard(s, id);
         if (c) c.tapped = action.tapped;
       }
-      log(s, ctx, action.seat, `${who} ${action.tapped ? "taps" : "untaps"} ${action.cardIds.length} card(s)`);
+      log(s, ctx, action.seat, `${who} ${action.tapped ? "taps" : "untaps"} ${action.cardIds.length} card(s)`,
+        "action",
+        { k: "tap", seat: action.seat, cardIds: action.cardIds, tapped: action.tapped });
       break;
     }
 
@@ -114,8 +134,12 @@ export function applyAction(
     }
 
     case "UNTAP_ALL": {
-      for (const c of zoneCards(s, action.seat, "battlefield")) c.tapped = false;
-      log(s, ctx, action.seat, `${who} untaps everything`);
+      const bf = zoneCards(s, action.seat, "battlefield");
+      const untapped = bf.filter((c) => c.tapped).map((c) => c.id);
+      for (const c of bf) c.tapped = false;
+      log(s, ctx, action.seat, `${who} untaps everything`,
+        "action",
+        { k: "untapAll", seat: action.seat, cardIds: untapped });
       break;
     }
 
@@ -124,7 +148,9 @@ export function applyAction(
         const c = findCard(s, id);
         if (c) c.faceDown = action.faceDown;
       }
-      log(s, ctx, action.seat, `${who} turns ${action.cardIds.length} card(s) ${action.faceDown ? "face down" : "face up"}`);
+      log(s, ctx, action.seat, `${who} turns ${action.cardIds.length} card(s) ${action.faceDown ? "face down" : "face up"}`,
+        "action",
+        { k: "flip", seat: action.seat, cardIds: action.cardIds, kind: "facedown" });
       break;
     }
 
@@ -133,16 +159,21 @@ export function applyAction(
         const c = findCard(s, id);
         if (c) c.flipped = !c.flipped;
       }
-      log(s, ctx, action.seat, `${who} transforms a card`);
+      log(s, ctx, action.seat, `${who} transforms a card`,
+        "action",
+        { k: "flip", seat: action.seat, cardIds: action.cardIds, kind: "transform" });
       break;
     }
 
     case "SET_COUNTER": {
       const c = findCard(s, action.cardId);
       if (c) {
+        const prev = c.counters[action.key] ?? 0;
         if (action.value <= 0) delete c.counters[action.key];
         else c.counters[action.key] = action.value;
-        log(s, ctx, action.seat, `${who} sets ${action.key} counters to ${action.value}`);
+        log(s, ctx, action.seat, `${who} sets ${action.key} counters to ${action.value}`,
+          "action",
+          { k: "counter", seat: action.seat, cardId: action.cardId, key: action.key, delta: action.value - prev });
       }
       break;
     }
@@ -155,7 +186,9 @@ export function applyAction(
         c.faceDown = false;
         c.order = nextOrder(s, action.seat, "hand");
       }
-      log(s, ctx, action.seat, `${who} draws ${top.length}`);
+      log(s, ctx, action.seat, `${who} draws ${top.length}`,
+        "action",
+        { k: "draw", seat: action.seat, cardIds: top.map((c) => c.id) });
       break;
     }
 
@@ -165,7 +198,9 @@ export function applyAction(
       shuffleInPlace(lib, ctx.rng);
       lib.forEach((c, i) => (c.order = orders[i]));
       for (const c of lib) c.faceDown = true;
-      log(s, ctx, action.seat, `${who} shuffles their library`);
+      log(s, ctx, action.seat, `${who} shuffles their library`,
+        "action",
+        { k: "shuffle", seat: action.seat });
       break;
     }
 
@@ -188,7 +223,9 @@ export function applyAction(
         c.faceDown = false;
         c.order = nextOrder(s, action.seat, "hand");
       }
-      log(s, ctx, action.seat, `${who} mulligans (will bottom ${action.bottomCount})`);
+      log(s, ctx, action.seat, `${who} mulligans (will bottom ${action.bottomCount})`,
+        "action",
+        { k: "mulligan", seat: action.seat, cardIds: draw.map((c) => c.id) });
       break;
     }
 
@@ -250,7 +287,9 @@ export function applyAction(
     case "SET_LIFE": {
       const t = seatOf(s, action.targetSeat);
       if (t) { const d = action.value - t.life; t.life = action.value;
-        log(s, ctx, action.seat, `${nameOf(s, action.targetSeat)} life ${d >= 0 ? "+" : ""}${d} → ${action.value}`); }
+        log(s, ctx, action.seat, `${nameOf(s, action.targetSeat)} life ${d >= 0 ? "+" : ""}${d} → ${action.value}`,
+          "action",
+          { k: "life", seat: action.seat, targetSeat: action.targetSeat, delta: d, value: action.value }); }
       break;
     }
     case "SET_POISON": {
@@ -292,11 +331,16 @@ export function applyAction(
 
     case "ROLL_DIE": {
       const r = 1 + Math.floor(ctx.rng() * action.sides);
-      log(s, ctx, action.seat, `${who} rolls d${action.sides}: ${r}`);
+      log(s, ctx, action.seat, `${who} rolls d${action.sides}: ${r}`,
+        "action",
+        { k: "die", seat: action.seat, sides: action.sides, value: r });
       break;
     }
     case "FLIP_COIN": {
-      log(s, ctx, action.seat, `${who} flips a coin: ${ctx.rng() < 0.5 ? "Heads" : "Tails"}`);
+      const heads = ctx.rng() < 0.5;
+      log(s, ctx, action.seat, `${who} flips a coin: ${heads ? "Heads" : "Tails"}`,
+        "action",
+        { k: "coin", seat: action.seat, heads });
       break;
     }
 

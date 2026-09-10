@@ -17,6 +17,18 @@ export function playerRange(mode: Gamemode): { min: number; max: number } {
   return mode === "commander" ? { min: 2, max: 6 } : { min: 2, max: 2 };
 }
 
+/**
+ * A single well-known room the server seeds on startup and never reaps, so it's
+ * always available at a stable code for quick testing and rejoining after a
+ * browser reload. 5 chars, so it can't collide with a generated 6-char code.
+ */
+export const PUBLIC_ROOM_CODE = "TABLE";
+export const PUBLIC_ROOM_SETTINGS: RoomSettings = {
+  gamemode: "commander",
+  maxPlayers: 6,
+  startingLife: 40,
+};
+
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /**

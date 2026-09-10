@@ -3,6 +3,8 @@
 // battlefield we also compute a normalized 0..1 position inside the target rect.
 import type { Zone } from "@mtg/shared";
 import { useStore } from "./store";
+import { createGhost } from "./fx/ghost";
+import { suppressFx } from "./fx/suppress";
 
 export interface DropInfo {
   zone: Zone;
@@ -14,22 +16,7 @@ export interface DropInfo {
 let ghost: HTMLDivElement | null = null;
 
 function makeGhost(imgUrl: string | null, count: number) {
-  ghost = document.createElement("div");
-  ghost.className = "drag-ghost";
-  if (imgUrl) {
-    const img = document.createElement("img");
-    img.src = imgUrl;
-    ghost.appendChild(img);
-  } else {
-    ghost.textContent = "🂠";
-  }
-  if (count > 1) {
-    const b = document.createElement("span");
-    b.className = "drag-count";
-    b.textContent = String(count);
-    ghost.appendChild(b);
-  }
-  document.body.appendChild(ghost);
+  ghost = createGhost({ img: imgUrl, count, className: "drag-ghost" });
 }
 
 function moveGhost(x: number, y: number) {
@@ -86,6 +73,8 @@ export function startCardDrag(
       dragging = true;
       makeGhost(ghostImg, cardIds.length);
       useStore.getState().closeMenu();
+      // Hide the source card(s) immediately so only the ghost tracks the pointer.
+      useStore.getState().setDragging(cardIds);
     }
     if (dragging) {
       moveGhost(ev.clientX, ev.clientY);
@@ -97,15 +86,31 @@ export function startCardDrag(
   const up = (ev: PointerEvent) => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", cancel);
     if (!dragging) {
       onClick?.();
       return;
     }
     const hit = dropTargetAt(ev.clientX, ev.clientY);
     killGhost();
-    if (hit) onDrop(hit.info);
+    useStore.getState().setDragging(null);
+    if (hit) {
+      // The drag already showed the card moving — don't let the echoed MOVE
+      // snapshot replay it as a flight.
+      suppressFx(cardIds);
+      onDrop(hit.info);
+    }
+  };
+
+  const cancel = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", cancel);
+    killGhost();
+    useStore.getState().setDragging(null);
   };
 
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", cancel);
 }

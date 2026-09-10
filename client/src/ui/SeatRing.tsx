@@ -37,6 +37,7 @@ export function SeatRing() {
           <button
             key={seat.id}
             className={cls}
+            data-seat={seat.id}
             style={{ left: `${cx}%`, top: `${cy}%` }}
             onClick={() => setFocus(seat.id)}
             title={`${seat.name} — ${seat.life} life · ${hand} in hand`}

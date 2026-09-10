@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useStore } from "../store";
 import type { Zone } from "@mtg/shared";
 import { faceOf } from "../cardface";
+import { startCardDrag } from "../dnd";
 
 const LABEL: Record<string, string> = {
   library: "Library",
@@ -27,15 +28,16 @@ export function ZonePile({ zone, controller, isSelf }: { zone: Zone; controller:
   const you = useStore((s) => s.you)!;
   const state = useStore((s) => s.state);
   const dict = useStore((s) => s.dict);
+  const dragging = useStore((s) => s.dragging);
 
   // Derive from the stable `state` ref — selectors must not return fresh arrays
   // (that would loop zustand's re-render check).
   const cards = useMemo(
     () =>
       (state?.seats.flatMap((x) => x.cards) ?? []).filter(
-        (c) => c.controller === controller && c.zone === zone,
+        (c) => c.controller === controller && c.zone === zone && !dragging.has(c.id),
       ),
-    [state, controller, zone],
+    [state, controller, zone, dragging],
   );
 
   const count = cards.length;
@@ -58,6 +60,31 @@ export function ZonePile({ zone, controller, isSelf }: { zone: Zone; controller:
     }
   };
 
+  // You can pick up the top card of any of your own public piles and drag it
+  // straight onto the battlefield / hand / another pile. Library stays click-only
+  // (its top is hidden), and a plain tap still opens the browser / draws.
+  const canDragTop = isSelf && !!top && zone !== "library";
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button === 2 || !canDragTop || !top) return;
+    startCardDrag(
+      e,
+      [top.id],
+      topImg,
+      (d) =>
+        dispatch({
+          t: "MOVE",
+          seat: you,
+          cardIds: [top.id],
+          toZone: d.zone,
+          toController: d.controller || you,
+          x: d.x,
+          y: d.y,
+        }),
+      handleClick,
+    );
+  };
+
   const handleContext = (e: React.MouseEvent) => {
     e.preventDefault();
     // Reuse the card menu anchor by faking a pseudo instance for pile ops.
@@ -70,7 +97,8 @@ export function ZonePile({ zone, controller, isSelf }: { zone: Zone; controller:
       className={"pile" + (topImg ? " has-art" : "")}
       data-drop={zone}
       data-controller={controller}
-      onClick={handleClick}
+      onClick={canDragTop ? undefined : handleClick}
+      onPointerDown={canDragTop ? handlePointerDown : undefined}
       onContextMenu={handleContext}
       title={`${LABEL[zone]} — ${count} card(s)`}
     >

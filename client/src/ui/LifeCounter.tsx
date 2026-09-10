@@ -11,6 +11,7 @@ export function LifeCounter({ seatId, isSelf }: { seatId: string; isSelf: boolea
   return (
     <div
       className={"life" + (isSelf ? " mine" : " opp")}
+      data-seat={seatId}
       onWheel={(e) => setLife(seat.life + (e.deltaY < 0 ? 1 : -1))}
       onContextMenu={(e) => {
         e.preventDefault();

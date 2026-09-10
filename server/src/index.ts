@@ -8,8 +8,10 @@ import { resolveDecklist } from "./deck.js";
 import {
   getRoom,
   reapEmptyRooms,
+  ensurePublicRoom,
   type DeckChoice,
 } from "./rooms.js";
+import { PUBLIC_ROOM_CODE } from "@mtg/shared";
 import { userFromRequest, publicUser } from "./auth.js";
 import { readJson, sendJson } from "./api/util.js";
 import * as authApi from "./api/auth.js";
@@ -151,6 +153,9 @@ wss.on("connection", (ws: WebSocket, req) => {
       case "action":
         room.handleAction(clientId, msg.action);
         break;
+      case "leave":
+        room.leaveSeat(clientId);
+        break;
       case "ping":
         send({ t: "pong" });
         break;
@@ -173,8 +178,10 @@ function lanUrls(port: number): string[] {
 }
 
 server.listen(PORT, "0.0.0.0", () => {
+  ensurePublicRoom();
   console.log(`\n  MTG tabletop server on port ${PORT}`);
   console.log(`  local:   http://localhost:${PORT}`);
   for (const u of lanUrls(PORT)) console.log(`  LAN:     ${u}   <- share this`);
+  console.log(`  public:  http://localhost:${PORT}/?room=${PUBLIC_ROOM_CODE}   <- always open`);
   console.log("");
 });

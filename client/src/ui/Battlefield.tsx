@@ -15,14 +15,14 @@ export function Battlefield({ controller, isSelf }: { controller: string; isSelf
   const you = useStore((s) => s.you)!;
 
   const onDrop = (d: DropInfo, ids: string[]) => {
-    // The server only lets you move your own cards, so this is effectively
-    // mine-only regardless of which board is on screen.
+    // Respect wherever the card was dropped — another spot on the battlefield,
+    // or a pile / hand. The server only lets you move your own cards.
     dispatch({
       t: "MOVE",
       seat: you,
       cardIds: ids,
-      toZone: "battlefield",
-      toController: controller,
+      toZone: d.zone,
+      toController: d.controller || controller,
       x: d.x,
       y: d.y,
     });

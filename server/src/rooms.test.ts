@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Seat } from "@mtg/shared";
-import { createRoom, getRoom, normalizeCode, Room } from "./rooms.ts";
-import { DEFAULT_SETTINGS } from "@mtg/shared";
+import { createRoom, getRoom, ensurePublicRoom, normalizeCode, Room } from "./rooms.ts";
+import { DEFAULT_SETTINGS, PUBLIC_ROOM_CODE } from "@mtg/shared";
 
 const mkSeat = (id: string): Seat => ({
   id, name: id, connected: false, life: 40, poison: 0, energy: 0,
@@ -42,12 +42,59 @@ test("join reconnects by seatId without needing a deck", async () => {
   assert.equal(room.state.seats[0].connected, true);
 });
 
+test("leaveSeat frees the seat, hands off the turn, and logs it", async () => {
+  const room = createRoom(DEFAULT_SETTINGS.commander);
+  room.state.seats.push(mkSeat("seat_1"), mkSeat("seat_2"));
+  room.state.turn = "seat_1";
+  const { clientId } = room.addClient(() => {}, null);
+  await room.join(clientId, { seatId: "seat_1" }); // reconnect binds the client to seat_1
+
+  room.leaveSeat(clientId);
+
+  assert.deepEqual(room.state.seats.map((s) => s.id), ["seat_2"]);
+  assert.equal(room.state.turn, "seat_2");
+  assert.ok(room.state.log.some((l) => l.text === "seat_1 left the table"));
+});
+
 test("join without a deck choice is rejected for a new seat", async () => {
   const room = createRoom(DEFAULT_SETTINGS.duel);
   const { clientId } = room.addClient(() => {}, null);
   const r = await room.join(clientId, { name: "NoDeck" });
   assert.equal(r.ok, false);
   assert.equal(r.ok === false && r.code, "deck_invalid");
+});
+
+test("buildLibrary deals a 7-card opening hand", () => {
+  const room = createRoom(DEFAULT_SETTINGS.duel);
+  room.state.seats.push(mkSeat("seat_1"));
+  const seat = room.state.seats[0];
+  const fake = {
+    dict: {},
+    main: Array.from({ length: 40 }, (_, i) => `o_x${i}`),
+    commanders: [],
+  };
+  (room as unknown as { buildLibrary(s: Seat, d: unknown): void }).buildLibrary(seat, fake);
+  const hand = seat.cards.filter((c) => c.zone === "hand");
+  const lib = seat.cards.filter((c) => c.zone === "library");
+  assert.equal(hand.length, 7);
+  assert.equal(lib.length, 33);
+  assert.ok(hand.every((c) => !c.faceDown));
+  assert.equal(seat.library_loaded, true);
+});
+
+test("ensurePublicRoom is idempotent and self-heals via getRoom", () => {
+  const a = ensurePublicRoom();
+  assert.equal(a.code, PUBLIC_ROOM_CODE);
+  assert.equal(a.persistent, true);
+  assert.equal(ensurePublicRoom(), a); // same instance on a second call
+  assert.equal(getRoom(PUBLIC_ROOM_CODE.toLowerCase()), a); // normalized + present
+});
+
+test("the public room is never reaped, even when empty and stale", () => {
+  const room = ensurePublicRoom();
+  room.everJoined = true;
+  room.emptySince = room.createdAt;
+  assert.equal(room.reapable(room.createdAt + 60 * 60_000), false);
 });
 
 test("reapable: empty+joined after 10m, never-joined after 15m", () => {

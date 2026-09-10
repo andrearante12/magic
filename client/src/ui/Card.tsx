@@ -19,7 +19,9 @@ interface Props {
 export function Card({ inst, style, className = "", interactive, onDrop, onActivate, hoverZoom = true }: Props) {
   const data = useStore((s) => (inst.oracleId ? s.dict[inst.oracleId] ?? null : null));
   const selected = useStore((s) => s.selected.has(inst.id));
+  const beingDragged = useStore((s) => s.dragging.has(inst.id));
   const setPreview = useStore((s) => s.setPreview);
+  const setHovered = useStore((s) => s.setHovered);
   const openMenu = useStore((s) => s.openMenu);
   const selectedIds = useStore((s) => s.selected);
 
@@ -43,6 +45,7 @@ export function Card({ inst, style, className = "", interactive, onDrop, onActiv
     "card",
     inst.tapped ? "tapped" : "",
     selected ? "selected" : "",
+    beingDragged ? "drag-src" : "",
     hoverZoom ? "hoverable" : "",
     className,
   ].join(" ");
@@ -53,7 +56,13 @@ export function Card({ inst, style, className = "", interactive, onDrop, onActiv
     <div
       className={cls}
       style={style}
-      onMouseEnter={() => !showBack && setPreview(inst)}
+      data-card-id={inst.id}
+      onMouseEnter={() => {
+        if (showBack) return;
+        setPreview(inst);
+        setHovered(inst.id);
+      }}
+      onMouseLeave={() => setHovered(null)}
       onPointerDown={(e) => {
         if (e.button === 2) return;
         if (!interactive) {

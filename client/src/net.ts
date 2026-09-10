@@ -81,6 +81,11 @@ export class Net {
     this.raw({ t: "action", action });
   }
 
+  /** Give up the seat for good (frees it for other players). */
+  leave() {
+    this.raw({ t: "leave" });
+  }
+
   close() {
     this.closedByUser = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);

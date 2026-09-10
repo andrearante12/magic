@@ -3,6 +3,8 @@ import {
   applyAction,
   redactFor,
   checkDeck,
+  PUBLIC_ROOM_CODE,
+  PUBLIC_ROOM_SETTINGS,
   type Action,
   type ActionContext,
   type CardData,
@@ -51,7 +53,10 @@ export class Room {
   readonly createdAt = Date.now();
   everJoined = false;
   emptySince: number | null = Date.now();
+  /** Seeded rooms that must stay available across idle periods (never reaped). */
+  persistent = false;
   private logSeq = 1;
+  private seatSeq = 1; // monotonic — never reused, so a freed seat's id can't collide
   private rng: () => number;
   private history: string[] = []; // JSON snapshots for UNDO
 
@@ -99,6 +104,36 @@ export class Room {
     }
     this.clients.delete(clientId);
     if (this.clients.size === 0) this.emptySince = Date.now();
+    this.broadcast();
+  }
+
+  /**
+   * A seated client leaves the table for good: the seat and its cards are
+   * removed so someone else can sit down. The client stays connected as a
+   * spectator until its socket closes.
+   */
+  leaveSeat(clientId: string) {
+    const client = this.clients.get(clientId);
+    if (!client?.seatId) return;
+    const seatId = client.seatId;
+    const seat = this.seat(seatId);
+    client.seatId = null;
+    if (!seat) {
+      this.broadcast();
+      return;
+    }
+    this.state.seats = this.state.seats.filter((s) => s.id !== seatId);
+    // Hand the turn to whoever's left (or nobody) if the leaver was active.
+    if (this.state.turn === seatId) {
+      this.state.turn = this.state.seats[0]?.id ?? null;
+    }
+    this.state.log.push({
+      id: this.logSeq++,
+      seat: null,
+      text: `${seat.name} left the table`,
+      ts: Date.now(),
+      kind: "system",
+    });
     this.broadcast();
   }
 
@@ -169,7 +204,7 @@ export class Room {
     if (client.seatId && this.seat(client.seatId))
       return { ok: true, seatId: client.seatId };
 
-    const seatId = `seat_${this.seatCount() + 1}`;
+    const seatId = `seat_${this.seatSeq++}`;
     const seat: Seat = {
       id: seatId,
       name: opts.name?.slice(0, 24) || client.user?.displayName || `Player ${this.seatCount() + 1}`,
@@ -253,6 +288,8 @@ export class Room {
     for (const oid of deck.commanders) seat.cards.push(mk(oid, "command"));
 
     applyAction(this.state, { t: "SHUFFLE", seat: seat.id } as Action, this.ctx());
+    // Deal the opening hand automatically so a fresh player starts ready.
+    applyAction(this.state, { t: "DRAW", seat: seat.id, n: 7 } as Action, this.ctx());
     seat.library_loaded = true;
     this.state.log.push({
       id: this.logSeq++,
@@ -314,6 +351,7 @@ export class Room {
 
   /** Reapable once empty for a while, or created-but-never-joined and stale. */
   reapable(now: number): boolean {
+    if (this.persistent) return false;
     if (this.clients.size > 0) return false;
     if (this.everJoined) return this.emptySince != null && now - this.emptySince > 10 * 60_000;
     return now - this.createdAt > 15 * 60_000;
@@ -344,9 +382,23 @@ export function createRoom(settings: RoomSettings): Room {
 }
 
 /** Look up an existing room. Returns undefined for unknown codes — rooms are no
- *  longer conjured on connect. */
+ *  longer conjured on connect, except the always-open public room, which
+ *  self-heals so a reload or restart can always rejoin it. */
 export function getRoom(code: string): Room | undefined {
-  return rooms.get(normalizeCode(code));
+  const norm = normalizeCode(code);
+  if (norm === PUBLIC_ROOM_CODE) return ensurePublicRoom();
+  return rooms.get(norm);
+}
+
+/** Create the well-known public room if it isn't already in the registry. */
+export function ensurePublicRoom(): Room {
+  let room = rooms.get(PUBLIC_ROOM_CODE);
+  if (!room) {
+    room = new Room(PUBLIC_ROOM_CODE, PUBLIC_ROOM_SETTINGS);
+    room.persistent = true;
+    rooms.set(PUBLIC_ROOM_CODE, room);
+  }
+  return room;
 }
 
 export function reapEmptyRooms() {

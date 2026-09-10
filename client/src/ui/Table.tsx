@@ -4,6 +4,7 @@ import { HandFan } from "./HandFan";
 import { ZonePile } from "./ZonePile";
 import { RightRail } from "./RightRail";
 import { TurnBar } from "./TurnBar";
+import { TurnStartPrompt } from "./TurnStartPrompt";
 import { ContextMenu } from "./ContextMenu";
 import { ZoneBrowser } from "./ZoneBrowser";
 import { ImportDialog } from "./ImportDialog";
@@ -11,6 +12,7 @@ import { TokenPicker } from "./TokenPicker";
 import { SeatBoard } from "./SeatBoard";
 import { SeatRing } from "./SeatRing";
 import { CastFeed } from "./CastFeed";
+import { FxLayer } from "./FxLayer";
 
 const PILES = ["library", "graveyard", "exile", "command"] as const;
 
@@ -24,6 +26,7 @@ export function Table() {
   const clearSel = useStore((s) => s.clearSelection);
   const focus = useStore((s) => s.focus);
   const setFocus = useStore((s) => s.setFocus);
+  const railCollapsed = useStore((s) => s.railCollapsed);
 
   const mySeat = state.seats.find((x) => x.id === you)!;
   const focusSeat = state.seats.find((x) => x.id === (focus ?? you)) ?? mySeat;
@@ -60,7 +63,7 @@ export function Table() {
   };
 
   return (
-    <div className="table">
+    <div className={"table" + (railCollapsed ? " rail-collapsed" : "")}>
       <div className="rail-left">
         {!isSelf && (
           <>
@@ -110,6 +113,8 @@ export function Table() {
         <ZoneBrowser controller={modal.browse.controller} zone={modal.browse.zone} />
       )}
       {toast && <div className="toast">{toast}</div>}
+      <TurnStartPrompt />
+      <FxLayer />
     </div>
   );
 }
