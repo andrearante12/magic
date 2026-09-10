@@ -91,7 +91,7 @@ button.ghost { background: transparent; }
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-columns: 78px 1fr 300px;
+  grid-template-columns: 112px 1fr 300px;
   grid-template-rows: 1fr;
   background:
     radial-gradient(1400px 900px at 50% 50%, #20272d 0%, #12161a 70%, #0c0f12 100%);
@@ -100,6 +100,7 @@ button.ghost { background: transparent; }
   border-right: 1px solid var(--edge);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   padding: 12px 8px;
   background: linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.35));
@@ -135,7 +136,7 @@ button.ghost { background: transparent; }
 }
 /* Collapsed: rail column shrinks away; card info only peeks in on hover. */
 .table.rail-collapsed {
-  grid-template-columns: 78px 1fr 0;
+  grid-template-columns: 112px 1fr 0;
 }
 .rail-peek {
   position: absolute;
@@ -299,8 +300,8 @@ button.ghost { background: transparent; }
 /* ---------- Left rail piles ---------- */
 .pile {
   position: relative;
-  width: 62px;
-  height: 88px;
+  width: 90px;
+  height: 126px;
   border-radius: 6px;
   border: 1px solid var(--edge);
   background: linear-gradient(180deg, #1b2128, #12161a);
@@ -308,7 +309,7 @@ button.ghost { background: transparent; }
   place-items: center;
   cursor: pointer;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
   transition: border-color .1s, transform .06s;
 }
@@ -344,18 +345,19 @@ button.ghost { background: transparent; }
 }
 .pile .pile-label {
   position: absolute;
-  bottom: 4px; left: 0; right: 0;
+  bottom: 5px; left: 0; right: 0;
   text-transform: uppercase;
   letter-spacing: .06em;
-  font-size: 9px;
+  font-size: 10px;
 }
 .rail-left .stack-title {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .1em;
   text-align: center;
 }
+.rail-left > button { width: 90px; }
 
 /* ---------- Right rail ---------- */
 .preview {
@@ -1047,4 +1049,22 @@ button.big { padding: 12px; font-size: 15px; }
   .fx-coin-wrap, .fx-die-wrap { animation: none; }
   .turn-prompt, .cast-card { animation: none; }
   .pile.fx-shuffle { animation: none; }
+}
+
+/* instant hover tooltips (see ui/tooltip.ts) */
+.tip-pop {
+  position: fixed;
+  z-index: 9999;
+  max-width: 240px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(8, 10, 12, 0.96);
+  border: 1px solid var(--edge);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  white-space: normal;
+  pointer-events: none;
 }

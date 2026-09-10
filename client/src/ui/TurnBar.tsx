@@ -35,16 +35,16 @@ export function TurnBar() {
   return (
     <div className="turnbar">
       <div className="tb-group tb-left">
-        <button className="tb-room mono" onClick={copyInvite} title="Copy join link">
+        <button className="tb-room mono" onClick={copyInvite} data-tip="Copy join link">
           {state.roomCode}
         </button>
-        <button className="tb-leave" onClick={leave} title="Leave the table">
+        <button className="tb-leave" onClick={leave} data-tip="Leave the table">
           Leave
         </button>
         <span className="tb-turn">Turn {state.turnNumber}</span>
         <span
           className={"tb-active" + (myTurn ? " you" : "")}
-          title={myTurn ? "Your turn" : `${turnSeat?.name ?? "—"}'s turn`}
+          data-tip={myTurn ? "Your turn" : `${turnSeat?.name ?? "—"}'s turn`}
         >
           {turnSeat?.name ?? "—"}
         </span>
@@ -63,7 +63,7 @@ export function TurnBar() {
               role="tab"
               aria-selected={i === idx}
               className={"tb-seg" + (i === idx ? " on" : "")}
-              title={p.description}
+              data-tip={p.description}
               onClick={() => dispatch({ t: "SET_PHASE", seat: you, phase: p.id })}
             >
               {p.short}
@@ -76,7 +76,7 @@ export function TurnBar() {
         <div className="tb-tools">
           <button
             className="tb-icon"
-            title="Untap all (u)"
+            data-tip="Untap all (u)"
             aria-label="Untap all"
             onClick={() => dispatch({ t: "UNTAP_ALL", seat: you })}
           >
@@ -84,7 +84,7 @@ export function TurnBar() {
           </button>
           <button
             className="tb-icon"
-            title="Shuffle library (s)"
+            data-tip="Shuffle library (s)"
             aria-label="Shuffle library"
             onClick={() => dispatch({ t: "SHUFFLE", seat: you })}
           >
@@ -92,7 +92,7 @@ export function TurnBar() {
           </button>
           <button
             className="tb-icon"
-            title="Roll a d6"
+            data-tip="Roll a d6"
             aria-label="Roll a d6"
             onClick={() => dispatch({ t: "ROLL_DIE", seat: you, sides: 6 })}
           >
@@ -100,7 +100,7 @@ export function TurnBar() {
           </button>
           <button
             className="tb-icon"
-            title="Flip a coin"
+            data-tip="Flip a coin"
             aria-label="Flip a coin"
             onClick={() => dispatch({ t: "FLIP_COIN", seat: you })}
           >
@@ -108,7 +108,7 @@ export function TurnBar() {
           </button>
           <button
             className={"tb-icon" + (animations ? " on" : "")}
-            title={animations ? "Animations on" : "Animations off"}
+            data-tip={animations ? "Animations on" : "Animations off"}
             aria-label="Toggle animations"
             aria-pressed={animations}
             onClick={() => setAnimations(!animations)}

@@ -50,7 +50,7 @@ export function RightRail() {
       <button
         className="rail-toggle"
         onClick={toggleRail}
-        title={collapsed ? "Show card info & chat" : "Hide panel"}
+        data-tip={collapsed ? "Show card info & chat" : "Hide panel"}
         aria-label={collapsed ? "Show panel" : "Hide panel"}
       >
         {collapsed ? "‹" : "›"}
