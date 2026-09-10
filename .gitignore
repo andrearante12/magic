@@ -1,0 +1,10 @@
+node_modules/
+dist/
+server/.cache/
+*.log
+server/data/
+
+# build / local artifacts
+*.tsbuildinfo
+*.db
+server/server/
