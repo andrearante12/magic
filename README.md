@@ -55,6 +55,38 @@ To use a different port: `PORT=8080 npm start`.
 Playing over the internet instead of a LAN: run `npm start` on a reachable host
 (or forward port `3000`) and share that address — nothing else changes.
 
+### Production
+
+The permanent host is **`nucbox`** (`ssh andre@10.128.24.35`), serving on port
+`3000` and exposed publicly over HTTPS via Tailscale Funnel.
+
+```bash
+systemctl status magic          # service health
+journalctl -u magic -f          # live logs
+curl localhost:3000/api/health  # {"ok":true,"sha":...,"rooms":N,"players":N}
+```
+
+Three things about that box are worth knowing before touching it:
+
+- **Node 24 lives in `/opt/node24`, not apt.** `node:sqlite` needs 24, but the
+  box's system Node 18 is load-bearing for unrelated tooling (ROS 2 and friends)
+  — replacing it would cascade-remove `npm`, `webpack`, `eslint` and ~20 Debian
+  `node-*` packages. Anything running npm there must put `/opt/node24/bin` first
+  on `PATH`, because npm's shebang is `#!/usr/bin/env node`.
+- **The database lives outside the checkout**, at `/var/lib/magic/app.db` via
+  `DB_PATH`, so a bad deploy or a re-clone can never eat accounts and decks.
+- **The service runs as the `magic` user** with `WorkingDirectory=/srv/magic`.
+  That working directory is mandatory: `CLIENT_DIST` and the Scryfall cache are
+  resolved relative to `process.cwd()` and have no env override.
+
+**Deploys are automatic.** A merge to `master` pushes to GitHub, a self-hosted
+Actions runner on the box picks it up, and `scripts/deploy.sh` runs
+`npm ci && npm test && npm run build` *before* touching the running service, so a
+broken commit leaves prod up. It then waits for connected players to disconnect
+(rooms are in-memory, so a restart ends every game in progress) before
+restarting, and verifies `/api/health` reports the new commit — otherwise the
+Actions run goes red. Deploy by hand with `gh workflow run "Deploy to prod"`.
+
 ### Development (hot reload)
 
 ```bash
